@@ -1,0 +1,29 @@
+typl
+====
+
+1 + 2 : Fun ~ lists the most specific types this expression is.
+
+all-types
+1 + 2 : {{Sym,Lit},{Sym,Int},[Int,Sym,Int],Item,Fun} ~ lists all types that this 
+                                                     ~ expression is. (does not
+                                                     ~ include the unions.
+~ Sym and Lit are base types
+Int -> Lit! ~ '->' means implies.
+Char -> Lit! 
+{Sym Lit} = Fun! ~ '=' means iff.
+
+~ Fibonacci
+
+["fib" (\ [x] [x < 1])] = 1!
+["fib" Int] = Fibonacci!
+define Fibonacci (a) ((fib (a - 1)) - (fib (a - 2)))!
+
+~ everything is an expression including types.  When something like 'Int' is seen, it
+~ actually means '(\ (x) (x =? Int))' where '=?' checks the validity of iff.
+
+~ there is no true value for 'true'.  While there is a literal, '#t', it is not used by
+~ any conditionals.  Instead, if a condition is true, the target value(s) is/are 
+~ returned.  Otherwise, it will return '#f'.
+
+~ difference between '()' and '[]' is that '()' is evaluated by '!' if it is of type
+~ 'Fun'.
