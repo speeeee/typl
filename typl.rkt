@@ -23,9 +23,8 @@
                    (list "Int" (list "Lit"))
                    (list "Sym" (list "Any"))
                    (list "Any" '())
-                   (list (v (list "Lit" "Sym") "Union") (list "Fun"))
-                   (list "Fun" (list (v (list "Lit" "Sym") "Union")))
-                   (list (v (list "Int" "+" "Int") "List") (list "$fun"))))
+                   #;(list (v (list "Lit" "Sym") "Union") (list "Fun"))))
+(define funs (list (list "+" "Int" (list "Int" "Int"))))
 
 (define (string-split-spec str) (map list->string (filter (λ (x) (not (empty? x))) (splt (string->list str) '(())))))
 (define (splt str n) (let ([q (if (empty? str) #f (member (car str) (list #\( #\) #\{ #\} #\[ #\] #\!)))])
@@ -58,25 +57,37 @@
 #;(define (tequal? a b f) (let ([u (derive-union a)] [d (findf (λ (x) (=!? (car x) b)) f)])
   (or (=!? a b) (=!? u b) (ormap (λ (x) (=!? a x)) (second d)) (ormap (λ (x) (=!? u x)) (second d)))))
 
-(define (tequal? a b) (let ([at (findf (λ (x) (equal? (car x) a)) defs)] [bt (findf (λ (x) (equal? (car x) b)) defs)])
+#;(define (tequal? a b) (let ([at (findf (λ (x) (equal? (car x) a)) defs)] [bt (findf (λ (x) (equal? (car x) b)) defs)])
                         (write-spec a) (write-spec b)
   (cond [(and at bt) (or (member a (append (list (car bt)) (second bt))) (member b (append (list (car at)) (second at))))]
         [(and (equal? (v-type a) "Union") (equal? (v-type b) "Union")
               (= (length (v-val a)) (length (v-val b)))) (andmap tequal? (v-val a) (v-val b))]
         [else (equal? a b)]))) ; fix some major typing issues.
 
-(define (fun? e) (tequal? (derive-union (v-val e)) (v (list "Lit" "Sym") "Union")))
-(define (simplify e)
+#;(define (fun? e) (tequal? (derive-union (v-val e)) (v (list "Lit" "Sym") "Union")))
+#;(define (simplify e)
   (cond [(member "PList" (map v-type (v-val e))) (simplify (map simplify (v-val e)))]
         [(and (equal? (v-type e) "PList") (fun? e)) (v (v-val e) "Fun")]
         [else e]))
         
-        
+(define (simplify e)
+  (cond [(equal? (v-type e) "PList") (let* ([n (findf (λ (x) (equal? (car x) (v-val (car (v-val e))))) funs)]
+                                            [f (if n (v (fn (car (v-val e)) (map simplify (cdr (v-val e)))) (second n)) (begin (displayln "function does not exist!") (v "#f" "None")))])
+           (if (andmap teq? (map v-type (fn-ins (v-val f))) (third n)) f (v "#f" "None")))]
+        [else e]))
+
+(define (teq? a b) 
+  (or (member a (append (list b) (second (findf (λ (x) (equal? (car x) b)) defs))))
+      (member b (append (list a) (second (findf (λ (x) (equal? (car x) a)) defs))))))
+
+#;(define (type-check e)
+  ())
+
 (define (parse e)
   (if (equal? (v-val (pop e)) "!") (simplify (v (ret-pop e) "PList")) e))
 
 (define (main)
   (let ([e (check-parens (map lex (string-split-spec (read-line))))])
-    (write-spec (parse e)) (display " : ") (write-spec (derive-union e)) (main)))
+    (write-spec (parse e)) (main)))
 
 (main)
