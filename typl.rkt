@@ -19,12 +19,18 @@
         [(and (list? a) (list? b)) (andmap (λ (x y) (=!? x y)) a b)]
         [else (equal? a b)]))
 
+; both defs and funs are mutable.  defs is modified in the function, 'check-fun'.
+; funs is modified in function, --.  Otherwise, there are no mutable variables.
 (define defs (list (list "Lit" (list "Any")) ; a -> b or a implies b
                    (list "Int" (list "Lit"))
                    (list "Sym" (list "Any"))
                    (list "Any" '())
                    #;(list (v (list "Lit" "Sym") "Union") (list "Fun"))))
-(define funs (list (list "+" "Int" (list "Int" "Int"))))
+(define funs (list (list "+" "Int" (list "Int" "Int"))
+                   (list "union" '() '())
+                   (list "list" '() '())
+                   (list "\\" '() (list "List" "List"))
+                   (list "->" '() (list "Any" "Any")) (list "=" '() (list "Any" "Any"))))
 
 (define (string-split-spec str) (map list->string (filter (λ (x) (not (empty? x))) (splt (string->list str) '(())))))
 (define (splt str n) (let ([q (if (empty? str) #f (member (car str) (list #\( #\) #\{ #\} #\[ #\] #\!)))])
@@ -69,11 +75,26 @@
   (cond [(member "PList" (map v-type (v-val e))) (simplify (map simplify (v-val e)))]
         [(and (equal? (v-type e) "PList") (fun? e)) (v (v-val e) "Fun")]
         [else e]))
+
+(define (add-def! e f) (let ([ei (if (equal? (v-type e) "Sym") (v-val e) e)] [fi (if (equal? (v-type f) "Sym") (v-val f) f)])
+  (set! defs (if (member ei (map car defs)) 
+                 (push (filter (λ (x) (not (equal? ei (car x)))) defs)
+                   (list ei (push (second (findf (λ (x) (equal? ei (car x))) defs)) fi)))
+                 (push defs (list ei (list fi)))))))
         
+(define (check-fun f e n) (let ([n (fn-name (v-val f))])
+  (cond [(equal? n "list") (v e "List")]
+        [(equal? n "union") (v e "Union")]
+        [(equal? n "\\") (v e "Lambda")]
+        [(equal? n "->") (begin (add-def! (second e) (car e)) '())]
+        [(equal? n "=") (begin (add-def! (second e) (car e)) (add-def! (car e) (second e)) '())]
+        [(andmap teq? (map v-type (fn-ins (v-val f))) (third n)) f]
+        [else (v '() "False")])))
+
 (define (simplify e)
   (cond [(equal? (v-type e) "PList") (let* ([n (findf (λ (x) (equal? (car x) (v-val (car (v-val e))))) funs)]
-                                            [f (if n (v (fn (car (v-val e)) (map simplify (cdr (v-val e)))) (second n)) (begin (displayln "function does not exist!") (v "#f" "None")))])
-           (if (andmap teq? (map v-type (fn-ins (v-val f))) (third n)) f (v "#f" "None")))]
+                                            [e2 (map simplify (cdr (v-val e)))] [f (if n (v (fn (v-val (car (v-val e))) e2) (second n)) (begin (displayln "function does not exist!") (v "#f" "None")))])
+           (check-fun f e2 n)#;(if (andmap teq? (map v-type (fn-ins (v-val f))) (third n)) f (v "#f" "None")))]
         [else e]))
 
 (define (teq? a b) 
@@ -88,6 +109,6 @@
 
 (define (main)
   (let ([e (check-parens (map lex (string-split-spec (read-line))))])
-    (write-spec (parse e)) (main)))
+    (write-spec (parse e)) (write-spec defs) (main)))
 
 (main)

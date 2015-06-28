@@ -1,0 +1,25 @@
+typl-2
+====
+
+Types of a List are determined by function, derive-union.
+
+-> and = still exist as 'implies' and 'iff'.
+
+(lambda (list x) (list > x 0)) = Pos!
+(lambda (list x) (list > x 0)) -> Int!
+Pos -> Int!
+
+Problem is, '(list > x 0)' cannot be processed at compile-time, creating a hole
+in the type-system.
+
+Unfortunately, the closest solution is having the type-check code in the actual
+C code.  However, as a result, type mismatching will be caught in run-time rather than during compile-time.
+
+Another solution is checking the cases when there are literals available.  i.e. it is 
+possible to checking '(+ 1 2)' at run-time, and it can be easily be processed that the
+result is three, and that can be plugged into the expression for 'Pos'.  Unfortunately,
+this kind of solution could potentially obfuscate the compile-time phase.
+
+Despite being static, the language may have to have its type-checking at run-time.  It
+can still check the primitive types (Int, Char, etc) at compile-time, but any types
+that involve checking if an expression holds have to be checked at run-time unfortunately.
