@@ -82,12 +82,12 @@
                    (list ei (push (second (findf (λ (x) (equal? ei (car x))) defs)) fi)))
                  (push defs (list ei (list fi)))))))
         
-(define (check-fun f e n) (let ([n (fn-name (v-val f))])
-  (cond [(equal? n "list") (v e "List")]
-        [(equal? n "union") (v e "Union")]
-        [(equal? n "\\") (v e "Lambda")]
-        [(equal? n "->") (begin (add-def! (second e) (car e)) '())]
-        [(equal? n "=") (begin (add-def! (second e) (car e)) (add-def! (car e) (second e)) '())]
+(define (check-fun f e n) (let ([p (fn-name (v-val f))])
+  (cond [(equal? p "list") (v e "List")]
+        [(equal? p "union") (v e "Union")]
+        [(equal? p "\\") (v e "Lambda")]
+        [(equal? p "->") (begin (add-def! (second e) (car e)) '())]
+        [(equal? p "=") (begin (add-def! (second e) (car e)) (add-def! (car e) (second e)) '())]
         [(andmap teq? (map v-type (fn-ins (v-val f))) (third n)) f]
         [else (v '() "False")])))
 
@@ -104,11 +104,18 @@
 #;(define (type-check e)
   ())
 
+(define (out-c stk f)
+  (cond [(fn? stk) (begin (fprintf f "~a(" (fn-name stk))
+                          (map (λ (x) (begin (out-c x f) (fprintf f ","))) (ret-pop (fn-ins stk))) (out-c (pop (fn-ins stk)) f)
+                          (fprintf f ")"))]
+        [(v? stk) (out-c (v-val stk) f)]
+        [else (fprintf f "~a" stk)]))
+
 (define (parse e)
   (if (equal? (v-val (pop e)) "!") (simplify (v (ret-pop e) "PList")) e))
 
 (define (main)
   (let ([e (check-parens (map lex (string-split-spec (read-line))))])
-    (write-spec (parse e)) (write-spec defs) (main)))
+    (write-spec (parse e)) (out-c (parse e) (current-output-port)) (fprintf (current-output-port) ";~n") (main)))
 
 (main)
