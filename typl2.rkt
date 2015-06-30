@@ -29,7 +29,7 @@
                    (list "Sym" (list "Any"))
                    (list "Any" '())
                    #;(list (v (list "Lit" "Sym") "Union") (list "Fun"))))
-(define funs (list (list "+" "int" (list "Int" "Int"))
+(define funs (list (list "+" "Int" (list "Int" "Int"))
                    (list "union" '() '()) (list "Int" '() (list "Any"))
                    (list "list" '() '())
                    (list "\\" '() (list "List" "List" "List"))
@@ -73,20 +73,20 @@
                    (list ei (push (second (findf (λ (x) (equal? ei (car x))) defs)) fi)))
                  (push defs (list ei (list fi)))))))
 
-;(define (find-root e)
-;  (second (
+
 (define (equ? e f) (or (equal? e f) (equal? e "Sym") (equal? f "Sym")))
+(define (fun-out e o)
+  (fprintf o "~a ~a(" (findf (λ (x) (equal? (second e) (car x))) prims) (car e))
+  
 (define (mk-fun e)
-  (list (v-val (car e)) (car (member (v-type (third e)) (map second prims)))
+  (list (v-val (car e)) (car (member (v-type (third e)) (map car prims)))
         (map car (map v-val (filter (λ (x) (equal? (v-type x) "Prim")) (v-val (second e)))))))
 (define (check-fun f e n) (let ([p (fn-name (v-val f))])
-  (cond [(equal? p "list") (v e "List")] ;[(equal? p "union") (v e "Union")]
-        [(equal? p "\\") (v e "Lambda")] ;[(equal? p "pred") (v e "Predicate")]
+  (cond [(equal? p "list") (v e "List")] 
+        [(equal? p "\\") (v e "Lambda")] 
         [(member p (map car prims)) (v (findf (λ (x) (equal? p (car x))) prims) "Prim")]
-        ;[(equal? p "->") (begin (add-def! (second e) (car e)) '())]
-        ;[(equal? p "=") (begin (add-def! (second e) (car e)) (add-def! (car e) (second e)) '())]
         [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
-                               #;(fun-out (mk-fun e)))]
+                               (fun-out (mk-fun e) (current-output-port)))]
         [(andmap equ? (map v-type (fn-ins (v-val f))) (third n)) f]
         [else (v '() "False")])))
 
