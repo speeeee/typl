@@ -77,18 +77,22 @@
 
 
 (define (equ? e f) (or (equal? e f) (equal? e "Sym") (equal? f "Sym")))
-(define (fun-out ei e o)
-  (fprintf o "~a ~a(" (second (findf (λ (x) (equal? (second ei) (car x))) prims)) (car ei))
-  (map (λ (x) (fprintf o "~a _" x)) (ret-pop (third ei))) (fprintf o "~a _) {~n" (pop (third ei)))
-  (out-c (third e) (current-output-port)) (fprintf o ";~n}~n"))
-  
+(define (fun-out ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))])
+  (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
+  (map (λ (x y) (fprintf o "~a ~a, " x y)) (map (λ (x) (second x)) (map c (ret-pop (third ei))))
+       (map second (find-prims (ret-pop (v-val (second e)))))) 
+  (fprintf o "~a ~a) {~n" (second (c (pop (third ei))))
+           (second (pop (find-prims (v-val (second e))))))
+  (out-c (third e) (current-output-port)) (fprintf o ";~n}~n")))
+(define (find-prims preds)
+  (map v-val (filter (λ (x) (equal? (v-type x) "Prim")) preds)))
 (define (mk-fun e)
   (list (v-val (car e)) (car (member (v-type (third e)) (map car prims)))
-        (map car (map v-val (filter (λ (x) (equal? (v-type x) "Prim")) (v-val (second e)))))))
+        (map caar (find-prims (v-val (second e))))))
 (define (check-fun f e n) (let ([p (fn-name (v-val f))])
   (cond [(equal? p "list") (v e "List")] 
         [(equal? p "\\") (v e "Lambda")] 
-        [(member p (map car prims)) (v (findf (λ (x) (equal? p (car x))) prims) "Prim")]
+        [(member p (map car prims)) (v (list (findf (λ (x) (equal? p (car x))) prims) (v-val (car e))) "Prim")]
         [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
                                (fun-out (mk-fun e) e (current-output-port)))]
         [(andmap equ? (map v-type (fn-ins (v-val f))) (third n)) f]
