@@ -19,6 +19,8 @@
         [(and (list? a) (list? b)) (andmap (λ (x y) (=!? x y)) a b)]
         [else (equal? a b)]))
 
+; : a (list (Int b)) (+ b 1)!
+
 ; list of C-primitives in use so far.
 (define prims (list (list "Int" "int") (list "Char" "char")))
 
@@ -75,8 +77,10 @@
 
 
 (define (equ? e f) (or (equal? e f) (equal? e "Sym") (equal? f "Sym")))
-(define (fun-out e o)
-  (fprintf o "~a ~a(" (findf (λ (x) (equal? (second e) (car x))) prims) (car e))
+(define (fun-out ei e o)
+  (fprintf o "~a ~a(" (second (findf (λ (x) (equal? (second ei) (car x))) prims)) (car ei))
+  (map (λ (x) (fprintf o "~a _" x)) (ret-pop (third ei))) (fprintf o "~a _) {~n" (pop (third ei)))
+  (out-c (third e) (current-output-port)) (fprintf o ";~n}~n"))
   
 (define (mk-fun e)
   (list (v-val (car e)) (car (member (v-type (third e)) (map car prims)))
@@ -86,7 +90,7 @@
         [(equal? p "\\") (v e "Lambda")] 
         [(member p (map car prims)) (v (findf (λ (x) (equal? p (car x))) prims) "Prim")]
         [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
-                               (fun-out (mk-fun e) (current-output-port)))]
+                               (fun-out (mk-fun e) e (current-output-port)))]
         [(andmap equ? (map v-type (fn-ins (v-val f))) (third n)) f]
         [else (v '() "False")])))
 
