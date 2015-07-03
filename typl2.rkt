@@ -35,7 +35,7 @@
                    (list "union" '() '()) (list "Int" '() (list "Any"))
                    (list "list" '() '())
                    (list "\\" '() (list "List" "List" "List"))
-                   (list "pred" '() (list "List" "List"))
+                   (list "pred" '() (list "Sym" "List"))
                    (list "->" '() (list "Any" "Any")) (list "=" '() (list "Any" "Any"))
                    (list ":" '() (list "Sym" "List" "Any"))))
 ; e.g. (: Fib Int [a] [(Int a) (> a 0)] 
@@ -77,13 +77,19 @@
 
 
 (define (equ? e f) (or (equal? e f) (equal? e "Sym") (equal? f "Sym")))
-(define (fun-out ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))])
+(define (make-gate p o)
+  (if (empty? p) '()
+    (begin (fprintf o "if !(") (map (λ (x) (begin (out-c x o) (fprintf o "&&"))) (ret-pop p)) (out-c (pop p) o)
+           (fprintf o ") { printf(\"ERROR: parameters did not match gate requirements.\\n\"); exit(0); }~nelse { "))))
+(define (fun-out ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))]
+                               [d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
   (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
   (map (λ (x y) (fprintf o "~a ~a, " x y)) (map (λ (x) (second x)) (map c (ret-pop (third ei))))
-       (map second (find-prims (ret-pop (v-val (second e)))))) 
+       (map second (ret-pop (find-prims (v-val (second e)))))) 
   (fprintf o "~a ~a) {~n" (second (c (pop (third ei))))
            (second (pop (find-prims (v-val (second e))))))
-  (out-c (third e) (current-output-port)) (fprintf o ";~n}~n")))
+  (make-gate d o) (fprintf o "return ")
+  (out-c (third e) (current-output-port)) (fprintf o ";~n}") (if (empty? d) (fprintf o "~n") (fprintf o " }~n"))))
 (define (find-prims preds)
   (map v-val (filter (λ (x) (equal? (v-type x) "Prim")) preds)))
 (define (mk-fun e)
