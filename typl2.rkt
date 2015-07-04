@@ -81,14 +81,18 @@
   (if (empty? p) '()
     (begin (fprintf o "if !(") (map (λ (x) (begin (out-c x o) (fprintf o "&&"))) (ret-pop p)) (out-c (pop p) o)
            (fprintf o ") { printf(\"ERROR: parameters did not match gate requirements.\\n\"); exit(0); }~nelse { "))))
-(define (fun-out ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))]
-                               [d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
+(define (make-sig ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))]) 
   (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
   (map (λ (x y) (fprintf o "~a ~a, " x y)) (map (λ (x) (second x)) (map c (ret-pop (third ei))))
        (map second (ret-pop (find-prims (v-val (second e)))))) 
   (fprintf o "~a ~a) {~n" (second (c (pop (third ei))))
-           (second (pop (find-prims (v-val (second e))))))
-  (make-gate d o) (fprintf o "return ")
+           (second (pop (find-prims (v-val (second e))))))))
+(define (pred-out ei e o) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
+  (make-sig ei e o) (fprintf o "return ") 
+    (if (empty? d) (displayln "ERROR: useless predicate.  use `alias' instead.")
+        (begin (map (λ (x) (out-c x o) (fprintf o "&&")) (ret-pop d)) (out-c (pop d) o) (fprintf o "; }~n")))))
+(define (fun-out ei e o) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
+  (make-sig ei e o) (make-gate d o) (fprintf o "return ")
   (out-c (third e) (current-output-port)) (fprintf o ";~n}") (if (empty? d) (fprintf o "~n") (fprintf o " }~n"))))
 (define (find-prims preds)
   (map v-val (filter (λ (x) (equal? (v-type x) "Prim")) preds)))
@@ -101,6 +105,8 @@
         [(member p (map car prims)) (v (list (findf (λ (x) (equal? p (car x))) prims) (v-val (car e))) "Prim")]
         [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
                                (fun-out (mk-fun e) e (current-output-port)))]
+        [(equal? p "pred") (begin (set! funs (push funs (list (v-val (car e)) "Int" (map caar (find-prims (v-val (second e)))))))
+                                  (pred-out (list (v-val (car e)) "Int" (map caar (find-prims (v-val (second e))))) e (current-output-port)))]
         [(andmap equ? (map v-type (fn-ins (v-val f))) (third n)) f]
         [else (v '() "False")])))
 
