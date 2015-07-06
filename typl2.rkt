@@ -19,10 +19,10 @@
         [(and (list? a) (list? b)) (andmap (λ (x y) (=!? x y)) a b)]
         [else (equal? a b)]))
 
-; : a (list (Int b)) (+ b 1)!
+; : a (list (Int b) (+ b 1)) (+ b 1)!
 
 ; list of C-primitives in use so far.
-(define prims (list (list "Int" "int") (list "Char" "char")))
+(define prims (list (list "Int" "int") (list "Bool" "int") (list "Char" "char")))
 
 ; both defs and funs are mutable.  defs is modified in the function, 'check-fun'.
 ; funs is modified in function, --.  Otherwise, there are no mutable variables.
@@ -81,6 +81,8 @@
   (if (empty? p) '()
     (begin (fprintf o "if !(") (map (λ (x) (begin (out-c x o) (fprintf o "&&"))) (ret-pop p)) (out-c (pop p) o)
            (fprintf o ") { printf(\"ERROR: parameters did not match gate requirements.\\n\"); exit(0); }~nelse { "))))
+
+; 'ei' means an edited 'e'. (edited by 'mk-fun')
 (define (make-sig ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))]) 
   (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
   (map (λ (x y) (fprintf o "~a ~a, " x y)) (map (λ (x) (second x)) (map c (ret-pop (third ei))))
@@ -94,19 +96,36 @@
 (define (fun-out ei e o) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
   (make-sig ei e o) (make-gate d o) (fprintf o "return ")
   (out-c (third e) (current-output-port)) (fprintf o ";~n}") (if (empty? d) (fprintf o "~n") (fprintf o " }~n"))))
+
+; filters primitives from the gate.
 (define (find-prims preds)
   (map v-val (filter (λ (x) (equal? (v-type x) "Prim")) preds)))
 (define (mk-fun e)
   (list (v-val (car e)) (car (member (v-type (third e)) (map car prims)))
-        (map caar (find-prims (v-val (second e))))))
+        (map caar (find-prims (derive-prims (v-val (second e)))))))
+; mk-prim: makes a primitive based off of call. 'e' is any value; 'p' is the function name.
+(define (mk-prim e p) (v (list (findf (λ (x) (equal? p (car x))) prims) (v-val e)) "Prim"))
+; list-prims: from function 'f' it lists the primitives based off of the parameters.
+(define (list-prims f)
+  (map mk-prim (filter (λ (x) (equal? (v-type x) "Sym")) (fn-ins f))
+               (filter (λ (x) (not (list? x))) (map (λ (x y) (if (equal? (v-type x) "Sym") y '())) (fn-ins f) (third (findf (λ (x) (equal? (car x) (fn-name f))) funs))))))
+; derive-prims: applies c-primitive portion of gates to the top-level gate. 'ep' is the gate.
+(define (derive-prims ep) (dp ep '()))
+(define (dp ep n)
+  (cond [(empty? ep) n]
+        [(not (equal? (v-type (car ep)) "Prim")) (dp (cdr ep) (append n (cons (car ep) (list-prims (v-val (car ep))))))]
+        [else (dp (cdr ep) (push n (car ep)))]))
+
 (define (check-fun f e n) (let ([p (fn-name (v-val f))])
   (cond [(equal? p "list") (v e "List")] 
         [(equal? p "\\") (v e "Lambda")] 
-        [(member p (map car prims)) (v (list (findf (λ (x) (equal? p (car x))) prims) (v-val (car e))) "Prim")]
+        [(member p (map car prims)) (mk-prim (car e) p)]
         [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
-                               (fun-out (mk-fun e) e (current-output-port)))]
-        [(equal? p "pred") (begin (set! funs (push funs (list (v-val (car e)) "Int" (map caar (find-prims (v-val (second e)))))))
-                                  (pred-out (list (v-val (car e)) "Int" (map caar (find-prims (v-val (second e))))) e (current-output-port)))]
+                               (fun-out (mk-fun e) (list (car e) (v (derive-prims (v-val (second e))) "List") (third e))
+                                        (current-output-port)))]
+        [(equal? p "pred") (begin (set! funs (push funs (list (v-val (car e)) "Bool" (map caar (find-prims (v-val (second e)))))))
+                                  (pred-out (list (v-val (car e)) "Bool" (map caar (find-prims (v-val (second e))))) 
+                                            (list (car e) (v (derive-prims (v-val (second e))) "List") (third e)) (current-output-port)))]
         [(andmap equ? (map v-type (fn-ins (v-val f))) (third n)) f]
         [else (v '() "False")])))
 
