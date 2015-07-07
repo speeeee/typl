@@ -19,7 +19,10 @@
         [(and (list? a) (list? b)) (andmap (λ (x y) (=!? x y)) a b)]
         [else (equal? a b)]))
 
+(define out '())
+
 ; : a (list (Int b) (+ b 1)) (+ b 1)!
+; : a (list (+ b c)) (+ b c)!
 
 ; list of C-primitives in use so far.
 (define prims (list (list "Int" "int") (list "Bool" "int") (list "Char" "char")))
@@ -87,14 +90,14 @@
   (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
   (map (λ (x y) (fprintf o "~a ~a, " x y)) (map (λ (x) (second x)) (map c (ret-pop (third ei))))
        (map second (ret-pop (find-prims (v-val (second e)))))) 
-  (fprintf o "~a ~a) {~n" (second (c (pop (third ei))))
+  (fprintf o "~a ~a)" (second (c (pop (third ei))))
            (second (pop (find-prims (v-val (second e))))))))
 (define (pred-out ei e o) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
-  (make-sig ei e o) (fprintf o "return ") 
+  (make-sig ei e o) (fprintf o " {~nreturn ") 
     (if (empty? d) (displayln "ERROR: useless predicate.  use `alias' instead.")
         (begin (map (λ (x) (out-c x o) (fprintf o "&&")) (ret-pop d)) (out-c (pop d) o) (fprintf o "; }~n")))))
 (define (fun-out ei e o) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
-  (make-sig ei e o) (make-gate d o) (fprintf o "return ")
+  (make-sig ei e o) (fprintf o " {~n") (make-gate d o) (fprintf o "return ")
   (out-c (third e) (current-output-port)) (fprintf o ";~n}") (if (empty? d) (fprintf o "~n") (fprintf o " }~n"))))
 
 ; filters primitives from the gate.
@@ -152,10 +155,23 @@
 (define (parse e)
   (if (equal? (v-val (pop e)) "!") (simplify (v (ret-pop e) "PList")) e))
 
+(define (list-exprs e n)
+  (if (empty? e) n 
+      (if (equal? (v-val (car e)) "!") (list-exprs (cdr e) (push n '()))
+          (list-exprs (cdr e) (push (ret-pop n) (push (pop n) (car e)))))))
+(define (parse+ e)
+  (map simplify (map (λ (x) (v x "PList")) (filter (λ (x) (not (empty? x))) (list-exprs e '(()))))))
+
 (define (main)
   (let* ([e (check-parens (map lex (string-split-spec (read-line))))]
          [ei (parse e)])
     (write-spec ei) (out-c ei (current-output-port)) 
     (displayln funs) (fprintf (current-output-port) ";~n") (main)))
 
-(main)
+#;(define (main2)
+  (let* ([f (car (vector->list (current-command-line-arguments)))])))
+(define (main-test)
+  (let ([e (check-parens (map lex (string-split-spec (read-line))))])
+    (parse+ e) #;(fprintf (current-output-port) ";~n") (main-test)))
+
+(main-test)
