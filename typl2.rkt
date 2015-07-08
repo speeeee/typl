@@ -89,8 +89,8 @@
 ; 'ei' means an edited 'e'. (edited by 'mk-fun')
 (define (make-sig-h ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))]) 
   (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
-  (map (λ (x) (fprintf o "~a, " x)) (map (λ (x) (second (c x))) (ret-pop (third ei))))
-  (fprintf o "~a);~n" (second (c (pop (third ei)))))))
+  (map (λ (x) (fprintf o "~a , " x)) (map (λ (x) (second (c x))) (ret-pop (third ei))))
+  (fprintf o "~a) ;~n" (second (c (pop (third ei)))))))
 (define (make-sig ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))]) 
   (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
   (map (λ (x y) (fprintf o "~a ~a, " x y)) (map (λ (x) (second x)) (map c (ret-pop (third ei))))
@@ -124,8 +124,13 @@
         [(not (equal? (v-type (car ep)) "Prim")) (dp (cdr ep) (append n (cons (car ep) (list-prims (v-val (car ep))))))]
         [else (dp (cdr ep) (push n (car ep)))]))
 
+(define (import-h q) (let ([i (read-line q)])
+  (if (eof-object? i) '() (begin (sig->fun i) (import-h q)))))
+
 (define (check-fun f e n) (let ([p (fn-name (v-val f))])
   (cond [(equal? p "list") (v e "List")] 
+        [(equal? p "import") (let ([q (open-input-file (string-join (list (v-val (car (v-val e))) ".h") ""))]) 
+                               (import-h q) (close-input-port q))]
         [(equal? p "\\") (v e "Lambda")] 
         [(member p (map car prims)) (mk-prim (car e) p)]
         [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
@@ -167,19 +172,34 @@
 (define (parse+ e)
   (map simplify (map (λ (x) (v x "PList")) (filter (λ (x) (not (empty? x))) (list-exprs e '(()))))))
 
+(define (read-expr i) (re i '()))
+(define (re i n) (let ([c (read-char i)])
+  (cond [(eof-object? c) '()]
+        [(char=? c #\!) (list->string (append n (list #\!)))]
+        [else (re i (push n c))])))
+
+(define (prim->type p)
+  (car (findf (λ (x) (equal? p (second x))) prims)))
+(define (sig->fun s) (let ([e (filter (λ (x) (not (member x (list "(" ")" ";" ",")))) (string-split-spec s))])
+  (set! funs (push funs (list (prim->type (second e)) (prim->type (car e)) 
+                              (map prim->type (drop 2 e)))))))
+
 (define (main)
   (let* ([e (check-parens (map lex (string-split-spec (read-line))))]
          [ei (parse e)])
     (write-spec ei) (out-c ei (current-output-port)) 
     (displayln funs) (fprintf (current-output-port) ";~n") (main)))
 
+; just read-char until '!'.
 (define (main2)
   (let* ([f (car (vector->list (current-command-line-arguments)))]
          [q (open-input-file (string-join (list f ".typ") ""))]
-         [e (check-parens (map lex (string-split-spec (read-line q))))])
+         #;[e (check-parens (map lex (string-split-spec (read-line q))))])
     (set! outc (open-output-file (string-join (list f ".c") "") #:exists 'replace))
     (set! outh (open-output-file (string-join (list f ".h") "") #:exists 'replace))
-    (parse+ e) (close-output-port outc) (close-output-port outh) (close-input-port q)))
+    (define (per-expr i) (let ([e (read-expr q)])
+      (if (empty? e) '() (begin (parse+ (check-parens (map lex (string-split-spec e)))) (per-expr i)))))
+    (per-expr q) (close-output-port outc) (close-output-port outh) (close-input-port q)))
 (define (main-test)
   (let ([e (check-parens (map lex (string-split-spec (read-line))))])
     (parse+ e) #;(fprintf (current-output-port) ";~n") (main-test)))
