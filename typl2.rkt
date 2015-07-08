@@ -19,7 +19,8 @@
         [(and (list? a) (list? b)) (andmap (λ (x y) (=!? x y)) a b)]
         [else (equal? a b)]))
 
-(define out '())
+(define outc '())
+(define outh '())
 
 ; : a (list (Int b) (+ b 1)) (+ b 1)!
 ; : a (list (+ b c)) (+ b c)!
@@ -86,19 +87,23 @@
            (fprintf o ") { printf(\"ERROR: parameters did not match gate requirements.\\n\"); exit(0); }~nelse { "))))
 
 ; 'ei' means an edited 'e'. (edited by 'mk-fun')
+(define (make-sig-h ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))]) 
+  (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
+  (map (λ (x) (fprintf o "~a, " x)) (map (λ (x) (second (c x))) (ret-pop (third ei))))
+  (fprintf o "~a);~n" (second (c (pop (third ei)))))))
 (define (make-sig ei e o) (let ([c (λ (y) (findf (λ (x) (equal? y (car x))) prims))]) 
   (fprintf o "~a ~a(" (second (c (second ei))) (car ei))
   (map (λ (x y) (fprintf o "~a ~a, " x y)) (map (λ (x) (second x)) (map c (ret-pop (third ei))))
        (map second (ret-pop (find-prims (v-val (second e)))))) 
   (fprintf o "~a ~a)" (second (c (pop (third ei))))
            (second (pop (find-prims (v-val (second e))))))))
-(define (pred-out ei e o) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
-  (make-sig ei e o) (fprintf o " {~nreturn ") 
+(define (pred-out ei e o oh) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
+  (make-sig ei e o) (make-sig-h ei e oh) (fprintf o " {~nreturn ") 
     (if (empty? d) (displayln "ERROR: useless predicate.  use `alias' instead.")
         (begin (map (λ (x) (out-c x o) (fprintf o "&&")) (ret-pop d)) (out-c (pop d) o) (fprintf o "; }~n")))))
-(define (fun-out ei e o) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
-  (make-sig ei e o) (fprintf o " {~n") (make-gate d o) (fprintf o "return ")
-  (out-c (third e) (current-output-port)) (fprintf o ";~n}") (if (empty? d) (fprintf o "~n") (fprintf o " }~n"))))
+(define (fun-out ei e o oh) (let ([d (filter (λ (x) (not (equal? (v-type x) "Prim"))) (v-val (second e)))])
+  (make-sig ei e o) (make-sig-h ei e oh) (fprintf o " {~n") (make-gate d o) (fprintf o "return ")
+  (out-c (third e) o) (fprintf o ";~n}") (if (empty? d) (fprintf o "~n") (fprintf o " }~n"))))
 
 ; filters primitives from the gate.
 (define (find-prims preds)
@@ -125,10 +130,10 @@
         [(member p (map car prims)) (mk-prim (car e) p)]
         [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
                                (fun-out (mk-fun e) (list (car e) (v (derive-prims (v-val (second e))) "List") (third e))
-                                        (current-output-port)))]
+                                        outc outh))]
         [(equal? p "pred") (begin (set! funs (push funs (list (v-val (car e)) "Bool" (map caar (find-prims (v-val (second e)))))))
                                   (pred-out (list (v-val (car e)) "Bool" (map caar (find-prims (v-val (second e))))) 
-                                            (list (car e) (v (derive-prims (v-val (second e))) "List") (third e)) (current-output-port)))]
+                                            (list (car e) (v (derive-prims (v-val (second e))) "List") (third e)) outc outh))]
         [(andmap equ? (map v-type (fn-ins (v-val f))) (third n)) f]
         [else (v '() "False")])))
 
@@ -168,10 +173,15 @@
     (write-spec ei) (out-c ei (current-output-port)) 
     (displayln funs) (fprintf (current-output-port) ";~n") (main)))
 
-#;(define (main2)
-  (let* ([f (car (vector->list (current-command-line-arguments)))])))
+(define (main2)
+  (let* ([f (car (vector->list (current-command-line-arguments)))]
+         [q (open-input-file (string-join (list f ".typ") ""))]
+         [e (check-parens (map lex (string-split-spec (read-line q))))])
+    (set! outc (open-output-file (string-join (list f ".c") "") #:exists 'replace))
+    (set! outh (open-output-file (string-join (list f ".h") "") #:exists 'replace))
+    (parse+ e) (close-output-port outc) (close-output-port outh) (close-input-port q)))
 (define (main-test)
   (let ([e (check-parens (map lex (string-split-spec (read-line))))])
     (parse+ e) #;(fprintf (current-output-port) ";~n") (main-test)))
 
-(main-test)
+(main2)
