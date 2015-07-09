@@ -26,7 +26,7 @@
 ; : a (list (+ b c)) (+ b c)!
 
 ; list of C-primitives in use so far.
-(define prims (list (list "Int" "int") (list "Bool" "int") (list "Char" "char")))
+(define prims (list (list "Int" "int") (list "Bool" "int") (list "Char" "char") (list "String" "char*")))
 
 ; both defs and funs are mutable.  defs is modified in the function, 'check-fun'.
 ; funs is modified in function, --.  Otherwise, there are no mutable variables.
@@ -38,6 +38,8 @@
 (define funs (list (list "+" "Int" (list "Int" "Int"))
                    (list "union" '() '()) (list "Int" '() (list "Any"))
                    (list "list" '() '())
+                   (list "import" '() (list "Sym")) (list "in-c" '() (list "Sym"))
+                   (list "main:" '() (list "Any"))
                    (list "\\" '() (list "List" "List" "List"))
                    (list "pred" '() (list "Sym" "List"))
                    (list "->" '() (list "Any" "Any")) (list "=" '() (list "Any" "Any"))
@@ -60,6 +62,7 @@
 (define (lex l)
   (cond [(or (equal? (strcar l) #\-) (char-numeric? (strcar l))) (v l "Int")]
         [(member (strcar l) (list #\} #\) #\])) (v l "$close")]
+        [(equal? (strcar l) #\") (v l "String")]
         [else (v l "Sym")]))
 (define (check-parens stk) (cp stk '()))
 (define (cp stk n)
@@ -129,8 +132,12 @@
 
 (define (check-fun f e n) (let ([p (fn-name (v-val f))])
   (cond [(equal? p "list") (v e "List")] 
-        [(equal? p "import") (let ([q (open-input-file (string-join (list (v-val (car (v-val e))) ".h") ""))]) 
-                               (import-h q) (close-input-port q))]
+        [(member p (list "import" "in-c"))
+           (let ([q (open-input-file (string-join (list (v-val (car e)) ".h") ""))]) 
+             (import-h q) (close-input-port q)
+             (if (equal? p "in-c") (fprintf outc "#include <~a.h>" (v-val (car e))) (fprintf outc "#include \"~a.h\"~n" (v-val (car e)))))]
+        [(equal? p "main:") (begin (fprintf outc "int main(int argc, char** argv) {~n")
+                                   (out-c (car e) outc) (fprintf outc ";~nreturn 0;~n}"))]
         [(equal? p "\\") (v e "Lambda")] 
         [(member p (map car prims)) (mk-prim (car e) p)]
         [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
@@ -180,9 +187,9 @@
 
 (define (prim->type p)
   (car (findf (λ (x) (equal? p (second x))) prims)))
-(define (sig->fun s) (let ([e (filter (λ (x) (not (member x (list "(" ")" ";" ",")))) (string-split-spec s))])
-  (set! funs (push funs (list (prim->type (second e)) (prim->type (car e)) 
-                              (map prim->type (drop 2 e)))))))
+(define (sig->fun s) (let ([e (filter (λ (x) (not (member x (list "(" ")" ";" "," "const")))) (string-split-spec s))]) (displayln e)
+  (set! funs (push funs (list (second e) (prim->type (car e)) 
+                              (map prim->type (drop e 2)))))))
 
 (define (main)
   (let* ([e (check-parens (map lex (string-split-spec (read-line))))]
