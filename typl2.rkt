@@ -40,6 +40,7 @@
                    (list "list" '() '())
                    (list "import" '() (list "Sym")) (list "in-c" '() (list "Sym"))
                    (list "main:" '() (list "Any"))
+                   (list "fun" '() (list "Sym" "Sym" "List"))
                    (list "\\" '() (list "List" "List" "List"))
                    (list "pred" '() (list "Sym" "List"))
                    (list "->" '() (list "Any" "Any")) (list "=" '() (list "Any" "Any"))
@@ -138,9 +139,11 @@
              (if (equal? p "in-c") (fprintf outc "#include <~a.h>" (v-val (car e))) (fprintf outc "#include \"~a.h\"~n" (v-val (car e)))))]
         [(equal? p "main:") (begin (fprintf outc "int main(int argc, char** argv) {~n")
                                    (out-c (car e) outc) (fprintf outc ";~nreturn 0;~n}"))]
+        [(equal? p "fun") (set! funs (push funs (list (v-val (car e)) (v-val (second e)) (map v-val (v-val (third e))))))]
         [(equal? p "\\") (v e "Lambda")] 
         [(member p (map car prims)) (mk-prim (car e) p)]
-        [(equal? p ":") (begin (set! funs (push funs (mk-fun e)))
+        [(equal? p ":") (begin (when (not (member (v-val (car e)) (map car funs)))
+                                 (set! funs (push funs (mk-fun e))))
                                (fun-out (mk-fun e) (list (car e) (v (derive-prims (v-val (second e))) "List") (third e))
                                         outc outh))]
         [(equal? p "pred") (begin (set! funs (push funs (list (v-val (car e)) "Bool" (map caar (find-prims (v-val (second e)))))))
