@@ -91,6 +91,35 @@ As mentioned before, an unpassed gate of a function returns an error.  The ambig
 
 Take the previous `square` definition.  Notice the single predicate, `(Int a)`.  Now notice that the example, `(square "2")`, returns an error at compile-time.  The reason for this is that `Int` is a special kind of predicate.  As mentioned before, this language compiles to C.  The reason why `Int` returns a compile-time error is because it has a direct relation to the C-primitive, `int`.  Because of this, the compiler can easily catch a type mismatch.  However, a predicate like, `(> 1 0)`, has no C-type that it relates to.   Because of this, `(> 1 0)`, is instead evaluated at run-time.
 
-Also, errors related to literal types like `List` (produced by using the `list` function) are also caught at compile-time. 
+Also, errors related to literal types like `List` (produced by using the `list` function) are also caught at compile-time.
+
+# Recursion
+
+Because of how the compiler parses the data during the definition of a function, it is required that the compiler know of **all** functions called in the definition.  A function is not stored until the end of its definition, so the function's signature must be specified before using recursion.  This is done with the `fun` function.
+
+```
+fun a Int (list Int)!
+: a (list (Int b)) (a b)!
+```
+
+Something to notice is the different syntax on the signature definition.  The first parameter is the name, the second is the return-type, and the third is a list of inputs.  For the input, the signature requires that **only** the predicates directly related to a C type be listed.
+
+This also applies to any kind of mutual recursion.  **Both** signatures must be defined before defining the body of the functions.
+
+# Something to keep in mind
+
+Take a look at this predicate definition:
+
+```
+pred a (list (positive (str->int b)))!
+```
+
+At first, it looks fine, but there is actually a problem with this predicate.  The compiler is not able to appropriately type-cast `b` to a C-primitive.  In order to fix this, the expression that directly contains the variable as an argument must also be listed, like so:
+
+```
+pred a (list (str->int b) (positive (str->int b)))!
+```
+
+Also notice how `str->int` is being used as a predicate even though it is not.  Keep in mind that any non-predicate evaluates to true as long as the gate is passed.
 
 
