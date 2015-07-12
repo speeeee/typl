@@ -48,7 +48,7 @@
 ; e.g. (: Fib Int [a] [(Int a) (> a 0)] 
 
 (define (string-split-spec str) (map list->string (filter (λ (x) (not (empty? x))) (splt (string->list str) '(())))))
-(define (splt str n) (let ([q (if (empty? str) #f (member (car str) (list #\( #\) #\{ #\} #\[ #\] #\!)))])
+(define (splt str n) (let ([q (if (empty? str) #f (member (car str) (list #\( #\) #\{ #\} #\[ #\] #\! #\; #\,)))])
   (cond [(empty? str) n] ;[(empty? n) (splt (cdr str) (if (char-whitespace? (car str)) n (push n (car str))))]
         [(empty? (pop n)) (splt (cdr str) (if (char-whitespace? (car str)) 
                                               n (if q (append n (list (list (car str)) '())) (push (ret-pop n) (push (pop n) (car str))))))]
