@@ -7,3 +7,4 @@ typl is a strongly-typed language with a syntax that resembles LISP (though it i
 
 The language is written in Racket and compiles to C.
 
+TODO: add functionality for 'or'. 
